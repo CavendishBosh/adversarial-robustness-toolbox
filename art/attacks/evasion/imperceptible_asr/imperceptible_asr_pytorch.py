@@ -25,18 +25,18 @@ specifically for PyTorch.
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import logging
-
-from typing import Tuple, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import numpy as np
 import scipy
 
 from art.attacks.attack import EvasionAttack
+from art.config import ART_NUMPY_DTYPE
 from art.estimators.estimator import BaseEstimator, LossGradientsMixin, NeuralNetworkMixin
 from art.estimators.pytorch import PyTorchEstimator
-from art.estimators.speech_recognition.speech_recognizer import SpeechRecognizerMixin
 from art.estimators.speech_recognition.pytorch_deep_speech import PyTorchDeepSpeech
-from art.config import ART_NUMPY_DTYPE
+from art.estimators.speech_recognition.speech_recognizer import SpeechRecognizerMixin
+from art.utils import set_pytorch_batchnorm
 
 if TYPE_CHECKING:
     import torch
@@ -243,8 +243,10 @@ class ImperceptibleASRPyTorch(EvasionAttack):
         # Start to compute adversarial examples
         adv_x = x.copy()
 
-        # Put the estimator in the training mode
+        # Put the estimator in the training mode, otherwise CUDA can't backpropagate through the model.
+        # However, estimator uses batch norm layers which need to be frozen
         self.estimator.model.train()
+        self.estimator.model.apply(set_pytorch_batchnorm(train=False))
 
         # Compute perturbation with batching
         num_batch = int(np.ceil(len(x) / float(self.batch_size)))
@@ -265,6 +267,8 @@ class ImperceptibleASRPyTorch(EvasionAttack):
             for i in range(len(adv_x_batch)):
                 adv_x[batch_index_1 + i] = adv_x_batch[i, : len(adv_x[batch_index_1 + i])]
 
+        # Unfreeze batch norm layers again
+        self.estimator.model.apply(set_pytorch_batchnorm(train=True))
         return adv_x
 
     def _generate_batch(self, x: np.ndarray, y: np.ndarray) -> np.ndarray:

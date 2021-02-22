@@ -1240,6 +1240,27 @@ def pad_sequence_input(x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     return x_padded, x_mask
 
 
+def set_pytorch_batchnorm(train: bool) -> Callable:
+    """
+    Return function that sets a batch normalization layers into train or eval mode.
+
+    Applied to a PyTorch model `model.apply(set_batchnorm(train={True,False})`.
+    """
+    from torch import nn
+
+    def set_train(layer):
+        if isinstance(layer, nn.modules.batchnorm._BatchNorm):
+            layer.train()
+
+    def set_eval(layer):
+        if isinstance(layer, nn.modules.batchnorm._BatchNorm):
+            layer.eval()
+
+    if train:
+        return set_train
+    return set_eval
+
+
 # -------------------------------------------------------------------------------------------------------- CUDA SUPPORT
 
 
